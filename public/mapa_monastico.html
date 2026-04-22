@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Atlas de Paisajes Monásticos</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600&family=EB+Garamond:ital,wght@0,400;0,500;1,400&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --parchment: #f5eedc;
+    --ink: #2a1f0e;
+    --gold: #8b6914;
+    --gold-light: #c9a84c;
+    --olive: #5a6e2c;
+    --panel-bg: rgba(245,238,220,0.97);
+    --shadow: 0 4px 20px rgba(42,31,14,0.25);
+    --border: 1px solid rgba(139,105,20,0.35);
+  }
+
+  body {
+    font-family: 'EB Garamond', Georgia, serif;
+    background: var(--ink);
+    color: var(--ink);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  header {
+    background: linear-gradient(135deg, #1a1208 0%, #2e2010 50%, #1a1208 100%);
+    border-bottom: 2px solid var(--gold);
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-shrink: 0;
+  }
+
+  header .ornament { color: var(--gold-light); font-size: 22px; }
+
+  header h1 {
+    font-family: 'Cinzel', serif;
+    color: var(--gold-light);
+    font-size: 1.15rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  }
+
+  header p {
+    color: rgba(201,168,76,0.7);
+    font-style: italic;
+    font-size: 0.85rem;
+    margin-top: 1px;
+  }
+
+  #map-container {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+  }
+
+  #map { width: 100%; height: 100%; }
+
+  /* ── TIME SLIDER ── */
+  #time-panel {
+    position: absolute;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    background: var(--panel-bg);
+    border: var(--border);
+    border-radius: 6px;
+    box-shadow: var(--shadow);
+    padding: 8px 18px 10px;
+    min-width: 360px;
+    text-align: center;
+  }
+
+  #time-label {
+    font-family: 'Cinzel', serif;
+    font-size: 1.05rem;
+    color: var(--gold);
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    margin-bottom: 6px;
+  }
+
+  #time-slider {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 5px;
+    border-radius: 3px;
+    background: linear-gradient(to right, var(--gold) 0%, var(--gold) 50%, #ccc 50%);
+    outline: none;
+    cursor: pointer;
+  }
+
+  #time-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px; height: 18px;
+    border-radius: 50%;
+    background: var(--gold);
+    border: 2px solid var(--ink);
+    cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  }
+
+  #time-range-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.72rem;
+    color: #7a6640;
+    margin-top: 3px;
+  }
+
+  /* ── LEGEND PANEL ── */
+  #legend {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    z-index: 1000;
+    background: var(--panel-bg);
+    border: var(--border);
+    border-radius: 6px;
+    box-shadow: var(--shadow);
+    min-width: 220px;
+    overflow: hidden;
+  }
+
+  #legend-header {
+    background: var(--olive);
+    color: #fff;
+    font-family: 'Cinzel', serif;
+    font-size: 0.9rem;
+    padding: 7px 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  #legend-header button {
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 1rem;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0 2px;
+  }
+
+  #legend-body { padding: 8px 10px 10px; }
+
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 2px;
+    cursor: pointer;
+    border-radius: 3px;
+    transition: background 0.15s;
+  }
+
+  .legend-item:hover { background: rgba(139,105,20,0.1); }
+
+  .legend-item input[type=checkbox] {
+    accent-color: var(--gold);
+    cursor: pointer;
+    width: 14px; height: 14px;
+  }
+
+  .legend-swatch {
+    width: 18px; height: 18px;
+    border-radius: 3px;
+    border: 1px solid rgba(0,0,0,0.2);
+    flex-shrink: 0;
+  }
+
+  .legend-item label {
+    font-size: 0.82rem;
+    cursor: pointer;
+    color: var(--ink);
+  }
+
+  /* ── SHOW POPULATIONS ── */
+  #pop-panel {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    z-index: 1000;
+    background: var(--panel-bg);
+    border: var(--border);
+    border-radius: 5px;
+    box-shadow: var(--shadow);
+    padding: 7px 12px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.82rem;
+    color: var(--ink);
+    cursor: pointer;
+  }
+
+  #pop-panel input { accent-color: var(--gold); cursor: pointer; }
+
+  /* ── POPUP ── */
+  .leaflet-popup-content-wrapper {
+    background: var(--panel-bg);
+    border: var(--border);
+    border-radius: 6px;
+    box-shadow: var(--shadow);
+    font-family: 'EB Garamond', serif;
+  }
+
+  .leaflet-popup-content { margin: 12px 16px; }
+  .leaflet-popup-content h3 {
+    font-family: 'Cinzel', serif;
+    font-size: 0.95rem;
+    color: var(--gold);
+    margin-bottom: 4px;
+  }
+  .leaflet-popup-content p { font-size: 0.82rem; color: #555; line-height: 1.5; }
+  .leaflet-popup-tip { background: var(--parchment); }
+</style>
+</head>
+<body>
+
+<header>
+  <span class="ornament">✦</span>
+  <div>
+    <h1>Atlas de Paisajes Monásticos</h1>
+    <p>Órdenes religiosas femeninas — Península Ibérica y Mediterráneo, siglos XIV–XVI</p>
+  </div>
+</header>
+
+<div id="map-container">
+  <div id="map"></div>
+
+  <!-- Time Slider -->
+  <div id="time-panel">
+    <div id="time-label">1500 – 1550</div>
+    <input type="range" id="time-slider" min="0" max="5" value="0" step="1">
+    <div id="time-range-labels">
+      <span>1500</span><span>1550</span><span>1600</span><span>1650</span><span>1700</span><span>1750</span><span>1800</span>
+    </div>
+  </div>
+
+  <!-- Show Populations toggle -->
+  <div id="pop-panel">
+    <input type="checkbox" id="show-pop">
+    <label for="show-pop">Mostrar poblaciones</label>
+  </div>
+
+  <!-- Legend / Filters -->
+  <div id="legend">
+    <div id="legend-header" onclick="toggleLegend()">
+      <span>Órdenes</span>
+      <button id="legend-toggle">−</button>
+    </div>
+    <div id="legend-body"></div>
+  </div>
+</div>
+
+<script>
+// ─── DATA ────────────────────────────────────────────────────────────────────
+
+const ORDERS = [
+  { id: 'Jesuitas',   label: 'Jesuitas',                   color: '#6db33f' },
+  { id: 'Franciscana',  label: 'Franciscana',                  color: '#804000' },
+  { id: 'Dominicos',       label: 'Dominicos',                       color: '#d32f2f' },
+];
+
+// Monasteries: [lat, lng, name, order_id, founded, description]
+const MONASTERIES = [
+  // --- ARGENTINA ---
+  [-28.550174, -56.035009, 'Santo Tomé', 'Jesuitas', 1632, 'Misión de Jesuitas en Argentina'],
+  [-27.91032, -55.750738, 'Santos Apóstoles San Pedro y San Pablo', 'Jesuitas', 1632, 'Misión de Jesuitas en Argentina'],
+  [-27.980416, -55.520352, 'N. Sra. de la Inmaculada Concepción', 'Jesuitas', 1619, 'Misión de Jesuitas en Argentina'],
+  [-27.887709, -55.344871, 'Santa María la Mayor', 'Jesuitas', 1626, 'Misión de Jesuitas en Argentina'],
+  [-27.874021, -55.135291, 'San Francisco Javier', 'Jesuitas', 1629, 'Misión de Jesuitas en Argentina'],
+  [-27.802426, -55.416718, 'Santos Mártires del Japón', 'Jesuitas', 1639, 'Misión de Jesuitas en Argentina'],
+  [-27.770324, -55.779573, 'San José de Itacuá', 'Jesuitas', 1633, 'Misión de Jesuitas en Argentina'],
+  [-27.743686, -55.899741, 'San Carlos Borromeo', 'Jesuitas', 1631, 'Misión de Jesuitas en Argentina'],
+  [-27.453841, -55.754973, 'Nuestra Señora de la Candelaria', 'Jesuitas', 1627, 'Misión de Jesuitas en Argentina'],
+  [-27.390602, -55.580745, 'Nuestra Señora de Santa Ana', 'Jesuitas', 1633, 'Misión de Jesuitas en Argentina'],
+  [-27.332977, -55.517321, 'Nuestra Señora de Loreto', 'Jesuitas', 1610, 'Misión de Jesuitas en Argentina'],
+  [-27.921944, -55.531667, 'San Ignacio Miní', 'Jesuitas', 1611, 'Misión de Jesuitas en Argentina'],
+  [-27.126298, -55.498502, 'Corpus Christi', 'Jesuitas', 1622, 'Misión de Jesuitas en Argentina'],
+  [-29.178457, -56.638253, 'N. Sra. de la Asunción de Acaraguá y Mbororé', 'Jesuitas', 1630, 'Misión de Jesuitas en Argentina'],
+  [-27.2667, -58.25, 'Pura y Limpia Concepción de Itatí', 'Franciscana', 1615, 'Misión de Franciscana en Argentina'],
+  [-23.1333, -64.3167, 'Ntra. Sra. de las Angustias de Zenta', 'Franciscana', 1779, 'Misión de Franciscana en Argentina'],
+  [-24.93, -61.48, 'Nueva Pompeya', 'Franciscana', 1900, 'Misión de Franciscana en Argentina'],
+  [-26.2411, -58.63, 'San Francisco de Laishí', 'Franciscana', 1901, 'Misión de Franciscana en Argentina'],
+  [-24.95, -58.7833, 'San Francisco Solano de Tacaaglé', 'Franciscana', 1901, 'Misión de Franciscana en Argentina'],
+  [-27.5, -56, 'Yaguapohá', 'Jesuitas', 1616, 'Misión de Jesuitas en Argentina'],
+  [-25.5, -54.6, 'Natividad de Ntra. Sra. de Acaray', 'Jesuitas', 1624, 'Misión de Jesuitas en Argentina'],
+  [-27.333, -55.5173, 'Ntra. Sra. de Loreto II', 'Jesuitas', 1632, 'Misión de Jesuitas en Argentina'],
+  [-27.2583, -55.5283, 'San Ignacio Miní II', 'Jesuitas', 1632, 'Misión de Jesuitas en Argentina'],
+  [-27.7437, -55.9, 'San Carlos', 'Jesuitas', 1632, 'Misión de Jesuitas en Argentina'],
+  [-23, -62, 'San Francisco de Regis', 'Jesuitas', 1653, 'Misión de Jesuitas en Argentina'],
+  [-23.1333, -64.3667, 'Santa María (Valle de Zenta)', 'Jesuitas', 1681, 'Misión de Jesuitas en Argentina'],
+  [-24.5, -64.5, 'San Juan Bautista de Balbuena', 'Jesuitas', 1711, 'Misión de Jesuitas en Argentina'],
+  [-25.2, -63.5, 'San Esteban de Miraflores', 'Jesuitas', 1715, 'Misión de Jesuitas en Argentina'],
+  [-26.3, -62.5, 'San José de las Petacas', 'Jesuitas', 1735, 'Misión de Jesuitas en Argentina'],
+  [-30.5833, -59.9333, 'San Javier (Santa Fe)', 'Jesuitas', 1743, 'Misión de Jesuitas en Argentina'],
+  [-29.1333, -59.5833, 'San Jerónimo del Rey', 'Jesuitas', 1748, 'Misión de Jesuitas en Argentina'],
+  [-29.2, -63.5, 'Purísima Concepción (Abipones)', 'Jesuitas', 1750, 'Misión de Jesuitas en Argentina'],
+  [-27.4514, -58.9867, 'San Fernando del Río Negro', 'Jesuitas', 1750, 'Misión de Jesuitas en Argentina'],
+  [-23.8167, -64.7833, 'San Ignacio de Ledesma', 'Jesuitas', 1756, 'Misión de Jesuitas en Argentina'],
+  [-26.4833, -58.3, 'San Carlos del Timbó', 'Jesuitas', 1763, 'Misión de Jesuitas en Argentina'],
+  [-29.47111, -56.8173, 'Yapeyú', 'Jesuitas', 1627, 'Misión de Jesuitas en Argentina'],
+  [-27.2708, -58.2436, 'Nuestra Señora de Itatí', 'Franciscana', 1615, 'Misión de Franciscana en Argentina'],
+  [-26.8318, -65.2045, 'Ntra. Sra. del Rosario (Tucumán)', 'Dominicos', 1565, 'Misión de Dominicos en Argentina'],
+  [-34.612, -58.3719, 'San Pedro Telmo (Buenos Aires)', 'Dominicos', 1601, 'Misión de Dominicos en Argentina'],
+  [-32.8894, -68.8441, 'Santo Domingo de Mendoza', 'Dominicos', 1561, 'Misión de Dominicos en Argentina'],
+  [-24.7914, -65.4111, 'Santo Domingo de Salta', 'Dominicos', 1582, 'Misión de Dominicos en Argentina'],
+  [-31.4172, -64.1878, 'Sta. Catalina de Siena (Córdoba)', 'Dominicos', 1613, 'Misión de Dominicos en Argentina'],
+
+  // --- BOLIVIA ---
+  [-19.1, -63.5, 'Francisco de Azero', 'Franciscana', 1758, 'Misión de Franciscana en Bolivia'],
+  [-18.9, -63.4, 'Santísima Trinidad de Abapó', 'Franciscana', 1771, 'Misión de Franciscana en Bolivia'],
+  [-18.8, -63.3, 'Ntra. Sra. del Carmen de Cabezas', 'Franciscana', 1772, 'Misión de Franciscana en Bolivia'],
+  [-19.9, -63.3, 'Purísima Concepción de Parapití', 'Franciscana', 1795, 'Misión de Franciscana en Bolivia'],
+  [-16.2747, -62.5072, 'San Javier (Chiquitos)', 'Jesuitas', 1691, 'Misión de Jesuitas en Bolivia'],
+  [-16.7833, -60.6667, 'San Rafael', 'Jesuitas', 1696, 'Misión de Jesuitas en Bolivia'],
+  [-17.8333, -60.7333, 'San José de Chiquitos', 'Jesuitas', 1698, 'Misión de Jesuitas en Bolivia'],
+  [-16.1333, -62.0167, 'Concepción (Chiquitos)', 'Jesuitas', 1708, 'Misión de Jesuitas en Bolivia'],
+  [-21.4, -64.1, 'Concepción (Valle de Salinas)', 'Jesuitas', 1717, 'Misión de Jesuitas en Bolivia'],
+  [-16.6833, -60.9667, 'San Miguel (Chiquitos)', 'Jesuitas', 1721, 'Misión de Jesuitas en Bolivia'],
+  [-19.5, -61, 'San Ignacio de los Zamucos', 'Jesuitas', 1724, 'Misión de Jesuitas en Bolivia'],
+  [-16.3667, -60.95, 'San Ignacio de Loyola (Velasco)', 'Jesuitas', 1748, 'Misión de Jesuitas en Bolivia'],
+  [-16.5833, -60.6833, 'Santa Ana (Chiquitos)', 'Jesuitas', 1755, 'Misión de Jesuitas en Bolivia'],
+  [-21.535, -64.729, 'San Francisco de Asís de Tarija', 'Franciscana', 1606, 'Misión de Franciscana en Bolivia'],
+  [-16.4957, -68.1336, 'San Juan Bautista de La Paz', 'Dominicos', 1548, 'Misión de Dominicos en Bolivia'],
+  [-19.5888, -65.7531, 'Santo Domingo de Potosí', 'Dominicos', 1548, 'Misión de Dominicos en Bolivia'],
+  [-19.047, -65.26, 'Santo Domingo de Sucre', 'Dominicos', 1554, 'Misión de Dominicos en Bolivia'],
+
+  // --- BRASIL ---
+  [-28.66096, -56.005747, 'San Francisco de Borja', 'Jesuitas', 1682, 'Misión de Jesuitas en Brasil'],
+  [-28.185096, -55.261442, 'San Nicolás', 'Jesuitas', 1626, 'Misión de Jesuitas en Brasil'],
+  [-28.408274, -54.961312, 'San Luis Gonzaga', 'Jesuitas', 1687, 'Misión de Jesuitas en Brasil'],
+  [-28.461704, -54.70991, 'San Lorenzo Mártir', 'Jesuitas', 1690, 'Misión de Jesuitas en Brasil'],
+  [-28.547326, -54.554877, 'San Miguel de las Misiones', 'Jesuitas', 1632, 'Misión de Jesuitas en Brasil'],
+  [-28.458218, -54.399062, 'San Juan Bautista', 'Jesuitas', 1697, 'Misión de Jesuitas en Brasil'],
+  [-28.305104, -54.261726, 'Santo Ángel Guardián', 'Jesuitas', 1706, 'Misión de Jesuitas en Brasil'],
+  [-22.5, -52, 'Misiones del Guayrá (Loreto)', 'Jesuitas', 1610, 'Misión de Jesuitas en Brasil'],
+  [-21, -57, 'Misiones de Itatines (Caaguazú)', 'Jesuitas', 1632, 'Misión de Jesuitas en Brasil'],
+  [-28.661, -56.0057, 'Misiones Orientales (S. F. Borja)', 'Jesuitas', 1632, 'Misión de Jesuitas en Brasil'],
+
+  // --- CHILE ---
+  [-36.8269, -73.0503, 'Santo Domingo de Concepción', 'Dominicos', 1570, 'Misión de Dominicos en Chile'],
+  [-33.4358, -70.6514, 'Santo Domingo de Santiago', 'Dominicos', 1557, 'Misión de Dominicos en Chile'],
+
+  // --- COLOMBIA ---
+  [3.9167, -73.5167, 'Misión de San Juan de los Llanos', 'Dominicos', 1620, 'Misión de Dominicos en Colombia'],
+  [4.601, -74.072, 'San Alberto Magno (Bogotá)', 'Dominicos', 1550, 'Misión de Dominicos en Colombia'],
+  [11.2408, -74.199, 'Santo Domingo de Santa Marta', 'Dominicos', 1529, 'Misión de Dominicos en Colombia'],
+  [5.5353, -73.3678, 'Santo Domingo de Tunja', 'Dominicos', 1551, 'Misión de Dominicos en Colombia'],
+
+  // --- CUBA ---
+  [23.1333, -82.3833, 'San Juan de Letrán', 'Dominicos', 1511, 'Misión de Dominicos en Cuba'],
+
+  // --- ECUADOR ---
+  [-1.5833, -77.75, 'Misión de Canelos', 'Dominicos', 1687, 'Misión de Dominicos en Ecuador'],
+  [-2.1894, -79.8805, 'Santo Domingo de Guayaquil', 'Dominicos', 1548, 'Misión de Dominicos en Ecuador'],
+  [-0.2241, -78.5125, 'Santo Domingo de Quito', 'Dominicos', 1541, 'Misión de Dominicos en Ecuador'],
+
+  // --- EE. UU. ---
+  [32.7811, -117.1053, 'San Diego de Alcalá', 'Franciscana', 1769, 'Misión de Franciscana en EE. UU.'],
+  [36.5427, -121.9189, 'San Carlos Borromeo de Carmelo', 'Franciscana', 1770, 'Misión de Franciscana en EE. UU.'],
+  [33.5019, -117.6625, 'San Juan Capistrano', 'Franciscana', 1776, 'Misión de Franciscana en EE. UU.'],
+  [34.4385, -119.7133, 'Santa Bárbara', 'Franciscana', 1786, 'Misión de Franciscana en EE. UU.'],
+  [37.7643, -122.4268, 'San Francisco de Asís (Dolores)', 'Franciscana', 1776, 'Misión de Franciscana en EE. UU.'],
+  [29.426, -98.4861, 'San Antonio de Valero (El Álamo)', 'Franciscana', 1718, 'Misión de Franciscana en EE. UU.'],
+  [29.3614, -98.4772, 'San José y San Miguel de Aguayo', 'Franciscana', 1720, 'Misión de Franciscana en EE. UU.'],
+
+  // --- GUATEMALA ---
+  [15.4708, -90.3733, 'Misión de Cobán', 'Dominicos', 1544, 'Misión de Dominicos en Guatemala'],
+  [15.1028, -90.3111, 'Misión de Salamá', 'Dominicos', 1550, 'Misión de Dominicos en Guatemala'],
+  [14.5573, -90.7332, 'Santiago de Guatemala', 'Dominicos', 1529, 'Misión de Dominicos en Guatemala'],
+
+  // --- MÉXICO ---
+  [21.2185, -99.4726, 'Santiago de Jalpan', 'Franciscana', 1751, 'Misión de Franciscana en México'],
+  [21.4426, -99.6335, 'San Miguel Concá', 'Franciscana', 1754, 'Misión de Franciscana en México'],
+  [21.1852, -99.3228, 'Santa María del Agua de Landa', 'Franciscana', 1760, 'Misión de Franciscana en México'],
+  [21.1614, -99.1867, 'San Francisco de Tilaco', 'Franciscana', 1754, 'Misión de Franciscana en México'],
+  [21.4, -99.33, 'Nuestra Señora de la Luz de Tancoyol', 'Franciscana', 1760, 'Misión de Franciscana en México'],
+  [16.737, -92.6376, 'San Cristóbal de las Casas', 'Dominicos', 1528, 'Misión de Dominicos en México'],
+  [17.7214, -97.3208, 'San Juan Bautista Coixtlahuaca', 'Dominicos', 1540, 'Misión de Dominicos en México'],
+  [18.8917, -98.7303, 'San Juan Bautista de Tetela', 'Dominicos', 1555, 'Misión de Dominicos en México'],
+  [17.5133, -97.4878, 'San Pedro y San Pablo Teposcolula', 'Dominicos', 1541, 'Misión de Dominicos en México'],
+  [19.4414, -99.1314, 'Santiago de México', 'Dominicos', 1526, 'Misión de Dominicos en México'],
+  [17.0664, -96.7232, 'Santo Domingo de Oaxaca', 'Dominicos', 1529, 'Misión de Dominicos en México'],
+  [16.7944, -96.6744, 'Santo Domingo de Ocotlán', 'Dominicos', 1555, 'Misión de Dominicos en México'],
+  [18.9861, -99.1022, 'Santo Domingo de Tepoztlán', 'Dominicos', 1555, 'Misión de Dominicos en México'],
+  [17.5181, -97.3375, 'Santo Domingo de Yanhuitlán', 'Dominicos', 1552, 'Misión de Dominicos en México'],
+  [30.0417, -115.725, 'El Rosario de Viñadaco', 'Dominicos', 1774, 'Misión de Dominicos en México'],
+  [29.9744, -115.2417, 'Misión San Fernando de Velicatá', 'Dominicos', 1769, 'Misión de Dominicos en México'],
+  [32.0919, -116.5744, 'Nuestra Señora de Guadalupe', 'Dominicos', 1834, 'Misión de Dominicos en México'],
+  [29.9744, -115.2417, 'San Fernando de Velicatá', 'Dominicos', 1769, 'Misión de Dominicos en México'],
+  [32.094, -116.854, 'San Miguel de la Frontera', 'Dominicos', 1787, 'Misión de Dominicos en México'],
+  [30.7833, -115.4667, 'San Pedro Mártir de Verona', 'Dominicos', 1794, 'Misión de Dominicos en México'],
+  [31.2702, -116.1855, 'San Vicente Ferrer', 'Dominicos', 1780, 'Misión de Dominicos en México'],
+  [31.8272, -115.8211, 'Santa Catarina V. y Mártir', 'Dominicos', 1797, 'Misión de Dominicos en México'],
+  [30.7719, -115.9372, 'Santo Domingo de la Frontera', 'Dominicos', 1775, 'Misión de Dominicos en México'],
+  [31.5544, -116.4111, 'Santo Tomás de Aquino', 'Dominicos', 1791, 'Misión de Dominicos en México'],
+
+  // --- PARAGUAY ---
+  [-26.890144, -57.023945, 'San Ignacio Guazú', 'Jesuitas', 1609, 'Misión de Jesuitas en Paraguay'],
+  [-27.055351, -55.753184, 'Jesús del Tavarangüé', 'Jesuitas', 1685, 'Misión de Jesuitas en Paraguay'],
+  [-27.131311, -55.703657, 'Santísima Trinidad del Paraná', 'Jesuitas', 1706, 'Misión de Jesuitas en Paraguay'],
+  [-27.3204, -56.3328, 'San Cosme y Damián', 'Jesuitas', 1632, 'Misión de Jesuitas en Paraguay'],
+  [-26.88674, -56.849188, 'Santa Rosa de Lima', 'Jesuitas', 1698, 'Misión de Jesuitas en Paraguay'],
+  [-26.783401, -56.943945, 'Santa María de Fe', 'Jesuitas', 1647, 'Misión de Jesuitas en Paraguay'],
+  [-25.265, -57.2525, 'San Lorenzo de los Altos', 'Franciscana', 1580, 'Misión de Franciscana en Paraguay'],
+  [-25.2786, -57.1706, 'San Francisco de Atyra', 'Franciscana', 1580, 'Misión de Franciscana en Paraguay'],
+  [-25.4833, -57.4667, 'Todos los Santos de Guarambaré', 'Franciscana', 1580, 'Misión de Franciscana en Paraguay'],
+  [-25.26, -57.0814, 'Tobatí', 'Franciscana', 1583, 'Misión de Franciscana en Paraguay'],
+  [-25.4833, -57.35, 'San Blas de Itá', 'Franciscana', 1585, 'Misión de Franciscana en Paraguay'],
+  [-25.5619, -57.2839, 'San Buenaventura de Yaguarón', 'Franciscana', 1587, 'Misión de Franciscana en Paraguay'],
+  [-26.1833, -56.3667, 'San José de Caazapá', 'Franciscana', 1607, 'Misión de Franciscana en Paraguay'],
+  [-26.6147, -56.2469, 'San Francisco de Yuty', 'Franciscana', 1611, 'Misión de Franciscana en Paraguay'],
+  [-25.85, -56.4333, 'San Francisco de Itapé', 'Franciscana', 1767, 'Misión de Franciscana en Paraguay'],
+  [-23.45, -56.5833, 'Tacuatí', 'Franciscana', 1788, 'Misión de Franciscana en Paraguay'],
+  [-26.1, -55.9333, 'San Juan Nepomuceno (F)', 'Franciscana', 1797, 'Misión de Franciscana en Paraguay'],
+  [-26.8901, -57.0239, 'San Ignacio Guazú', 'Jesuitas', 1609, 'Misión de Jesuitas en Paraguay'],
+  [-25.2833, -57.6333, 'Ntra. Sra. María de los Reyes', 'Jesuitas', 1610, 'Misión de Jesuitas en Paraguay'],
+  [-25, -57.5, 'Guazutinguá', 'Jesuitas', 1613, 'Misión de Jesuitas en Paraguay'],
+  [-27.3391, -55.8664, 'Encarnación de Itapúa', 'Jesuitas', 1615, 'Misión de Jesuitas en Paraguay'],
+  [-27.32, -56.35, 'San Cosme y Damián', 'Jesuitas', 1632, 'Misión de Jesuitas en Paraguay'],
+  [-27.1436, -56.7725, 'Santiago', 'Jesuitas', 1651, 'Misión de Jesuitas en Paraguay'],
+  [-26.8833, -56.8167, 'Santa Rosa de Lima', 'Jesuitas', 1698, 'Misión de Jesuitas en Paraguay'],
+  [-23.4, -57.2, 'Nuestra Señora de Belén', 'Jesuitas', 1760, 'Misión de Jesuitas en Paraguay'],
+  [-26.1, -55.9333, 'San Juan Nepomuceno (J)', 'Jesuitas', 1760, 'Misión de Jesuitas en Paraguay'],
+  [-25.5606, -57.2842, 'San Buenaventura de Yaguarón', 'Franciscana', 1586, 'Misión de Franciscana en Paraguay'],
+  [-26.1858, -56.3686, 'San José de Caazapá', 'Franciscana', 1607, 'Misión de Franciscana en Paraguay'],
+
+  // --- PERÚ ---
+  [-12.0453, -77.0272, 'San Francisco de Lima', 'Franciscana', 1546, 'Misión de Franciscana en Perú'],
+  [-16.4019, -71.5369, 'Santo Domingo de Arequipa', 'Dominicos', 1535, 'Misión de Dominicos en Perú'],
+  [-13.5204, -71.9759, 'Santo Domingo de Cusco', 'Dominicos', 1534, 'Misión de Dominicos en Perú'],
+  [-12.0441, -77.0311, 'Santo Domingo de Lima', 'Dominicos', 1535, 'Misión de Dominicos en Perú'],
+
+  // --- REP. DOMINICANA ---
+  [18.4778, -69.8833, 'Santo Domingo de Guzmán', 'Dominicos', 1510, 'Misión de Dominicos en Rep. Dominicana'],
+
+  // --- URUGUAY ---
+  [-33.3986, -58.3181, 'Santo Domingo en Soriano', 'Dominicos', 1624, 'Misión de Dominicos en Uruguay']
+];
+
+// Regions: [id, name, order_id, GeoJSON-like polygon coords]
+const REGIONS = [
+  {
+    id: 'corona_aragon',
+    name: 'Corona de Aragón',
+    order: 'clarisas',
+    color: '#d32f2f',
+    coords: [[43.0,3.3],[43.0,-0.5],[40.5,-0.5],[37.5,0.5],[38.5,3.5],[41.0,4.0],[43.0,3.3]]
+  },
+  {
+    id: 'corona_castilla',
+    name: 'Corona de Castilla',
+    order: 'otras',
+    color: '#f9a825',
+    coords: [[43.5,-9.3],[43.5,-0.5],[40.5,-0.5],[38.5,-1.0],[36.0,-5.0],[35.9,-5.4],[36.0,-9.3],[43.5,-9.3]]
+  },
+  {
+    id: 'portugal',
+    name: 'Portugal',
+    order: 'benedictinas',
+    color: '#6db33f',
+    coords: [[42.2,-9.3],[42.2,-6.5],[36.9,-7.5],[36.8,-9.5],[42.2,-9.3]]
+  },
+  {
+    id: 'navarra_vascongadas',
+    name: 'Navarra y Vascongadas',
+    order: 'otras',
+    color: '#1a237e',
+    coords: [[43.5,-0.5],[43.5,2.0],[42.0,2.0],[42.0,-0.5],[43.5,-0.5]]
+  },
+  {
+    id: 'sicilia',
+    name: 'Sicilia',
+    order: 'benedictinas',
+    color: '#d32f2f',
+    coords: [[38.3,12.4],[38.3,15.7],[36.6,15.7],[36.6,12.4],[38.3,12.4]]
+  },
+  {
+    id: 'napoles',
+    name: 'Reino de Nápoles',
+    order: 'clarisas',
+    color: '#d32f2f',
+    coords: [[41.5,13.5],[41.5,16.5],[37.5,16.5],[37.5,13.5],[41.5,13.5]]
+  },
+  {
+    id: 'cerdeña',
+    name: 'Cerdeña',
+    order: 'otras',
+    color: '#f9a825',
+    coords: [[41.2,8.1],[41.2,9.8],[38.8,9.8],[38.8,8.1],[41.2,8.1]]
+  }
+];
+
+// Time periods
+const TIME_PERIODS = [
+
+  { label: '1500 – 1550', min: 1500, max: 1550 },
+  { label: '1550 – 1600', min: 1550, max: 1600 },
+  { label: '1600 – 1650', min: 1600, max: 1650 },
+  { label: '1650 – 1700', min: 1650, max: 1700 },
+  { label: '1700 – 1750', min: 1700, max: 1750 },
+  { label: '1750 – 1800', min: 1750, max: 1800 },
+  { label: '1800 – 1850', min: 1800, max: 1850 },
+  { label: '1850 – 1900', min: 1850, max: 1900 }
+];
+
+// ─── MAP INIT ─────────────────────────────────────────────────────────────────
+
+const map = L.map('map', {
+  center: [-6.472535, -65.404783],
+  zoom: 4,
+  zoomControl: true,
+});
+
+L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+  attribution: '© OpenStreetMap contributors © CARTO',
+  maxZoom: 18,
+}).addTo(map);
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+
+let activeOrders = new Set(ORDERS.map(o => o.id));
+let currentPeriodIdx = 1;
+let showPop = false;
+
+const markerLayers = {};
+const regionLayers = {};
+let popLayer = null;
+
+// ─── LEGEND ───────────────────────────────────────────────────────────────────
+
+const legendBody = document.getElementById('legend-body');
+ORDERS.forEach(order => {
+  const item = document.createElement('div');
+  item.className = 'legend-item';
+  item.innerHTML = `
+    <input type="checkbox" id="cb-${order.id}" checked>
+    <div class="legend-swatch" style="background:${order.color}"></div>
+    <label for="cb-${order.id}">${order.label}</label>
+  `;
+  legendBody.appendChild(item);
+
+  const cb = item.querySelector('input');
+  cb.addEventListener('change', () => {
+    if (cb.checked) activeOrders.add(order.id);
+    else activeOrders.delete(order.id);
+    renderMap();
+  });
+});
+
+function toggleLegend() {
+  const body = document.getElementById('legend-body');
+  const btn = document.getElementById('legend-toggle');
+  if (body.style.display === 'none') {
+    body.style.display = '';
+    btn.textContent = '−';
+  } else {
+    body.style.display = 'none';
+    btn.textContent = '+';
+  }
+}
+
+// ─── MARKER ICONS ─────────────────────────────────────────────────────────────
+
+function makeIcon(color) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="36" viewBox="0 0 24 36">
+    <path d="M12 0C5.37 0 0 5.37 0 12c0 9 12 24 12 24S24 21 24 12C24 5.37 18.63 0 12 0z" fill="${color}" stroke="rgba(0,0,0,0.35)" stroke-width="1"/>
+    <circle cx="12" cy="12" r="5" fill="rgba(255,255,255,0.55)"/>
+  </svg>`;
+  return L.divIcon({
+    html: svg,
+    className: '',
+    iconSize: [24, 36],
+    iconAnchor: [12, 36],
+    popupAnchor: [0, -36],
+  });
+}
+
+// ─── RENDER ───────────────────────────────────────────────────────────────────
+
+function getOrderColor(orderId) {
+  return (ORDERS.find(o => o.id === orderId) || {}).color || '#888';
+}
+
+function renderMap() {
+  const period = TIME_PERIODS[currentPeriodIdx];
+
+  // Clear old
+  Object.values(markerLayers).forEach(l => map.removeLayer(l));
+  Object.values(regionLayers).forEach(l => map.removeLayer(l));
+  if (popLayer) { map.removeLayer(popLayer); popLayer = null; }
+
+  // Regions
+  REGIONS.forEach(r => {
+    if (!activeOrders.has(r.order)) return;
+    const poly = L.polygon(r.coords, {
+      color: r.color,
+      fillColor: r.color,
+      fillOpacity: 0.25,
+      weight: 1.5,
+      dashArray: '4,4',
+    });
+    poly.bindPopup(`<h3>${r.name}</h3><p>Orden predominante: ${ORDERS.find(o=>o.id===r.order)?.label||r.order}</p>`);
+    poly.addTo(map);
+    regionLayers[r.id] = poly;
+  });
+
+  // Monasteries
+  MONASTERIES.forEach((m, i) => {
+    const [lat, lng, name, order, founded, desc] = m;
+    if (!activeOrders.has(order)) return;
+    if (founded < period.min || founded >= period.max) return;
+
+    const color = getOrderColor(order);
+    const marker = L.marker([lat, lng], { icon: makeIcon(color) });
+    marker.bindPopup(`
+      <h3>${name}</h3>
+      <p><b>Orden:</b> ${ORDERS.find(o=>o.id===order)?.label||order}<br>
+      <b>Fundación:</b> ${founded}<br>
+      ${desc}</p>
+    `);
+    marker.addTo(map);
+    markerLayers[`m-${i}`] = marker;
+  });
+
+  // Populations (city labels)
+  if (showPop) {
+    const cities = [
+      [41.38, 2.17, 'Barcelona'], [40.41, -3.70, 'Madrid'], [37.38, -5.98, 'Sevilla'],
+      [39.46, -0.37, 'Valencia'], [36.72, -4.42, 'Málaga'], [37.88, -4.78, 'Córdoba'],
+      [40.96, -5.66, 'Salamanca'], [43.26, -2.92, 'Bilbao'], [42.84, -8.55, 'Santiago'],
+      [38.71, -9.14, 'Lisboa'], [41.89, 12.48, 'Roma'], [40.85, 14.27, 'Nápoles'],
+      [37.50, 15.08, 'Palermo'], [43.31, -1.98, 'Pamplona'], [39.86, -4.02, 'Toledo'],
+    ];
+    cities.forEach(([lat, lng, name]) => {
+      const icon = L.divIcon({
+        html: `<span style="font-family:'EB Garamond',serif;font-size:11px;color:#2a1f0e;
+          background:rgba(245,238,220,0.85);padding:1px 4px;border-radius:2px;
+          border:1px solid rgba(139,105,20,0.3);white-space:nowrap;">${name}</span>`,
+        className: '',
+        iconAnchor: [0, 8],
+      });
+      const m = L.marker([lat, lng], { icon, interactive: false });
+      m.addTo(map);
+      if (!popLayer) popLayer = m;
+      else {
+        // group into a simple array trick
+        if (!Array.isArray(popLayer)) popLayer = [popLayer];
+        popLayer.push(m);
+      }
+    });
+  }
+}
+
+// ─── CONTROLS ─────────────────────────────────────────────────────────────────
+
+const slider = document.getElementById('time-slider');
+const timeLabel = document.getElementById('time-label');
+
+slider.addEventListener('input', () => {
+  currentPeriodIdx = parseInt(slider.value);
+  timeLabel.textContent = TIME_PERIODS[currentPeriodIdx].label;
+  updateSliderBg();
+  renderMap();
+});
+
+function updateSliderBg() {
+  const pct = (parseInt(slider.value) / (slider.max - slider.min)) * 100;
+  slider.style.background = `linear-gradient(to right, var(--gold) 0%, var(--gold) ${pct}%, #ccc ${pct}%)`;
+}
+
+document.getElementById('show-pop').addEventListener('change', function() {
+  showPop = this.checked;
+  renderMap();
+});
+
+// ─── BOOT ─────────────────────────────────────────────────────────────────────
+
+renderMap();
+updateSliderBg();
+</script>
+</body>
+</html>
