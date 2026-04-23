@@ -29,7 +29,7 @@ const Map1 = () => {
   return (
     <div style={windowStyle}>
       <iframe
-        src="http://www.ub.edu/claustra/spa/Monestirs/atles"
+        src="https://www.ub.edu/claustra/spa/Monestirs/atles"
         title="Mapa Paisajes"
         style={iframeStyle}
         scrolling="no"
