@@ -22,3 +22,7 @@ code {
     width: 180% !important; /* Compensa el ancho al escalar */
   }
 }
+
+.leaflet-marker-icon.marker-cluster {
+    z-index: 9999 !important;
+}

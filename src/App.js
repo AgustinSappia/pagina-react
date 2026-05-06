@@ -2,6 +2,7 @@ import './App.css';
 import { PrimerComponente } from './components/PrimerComponente';
 import Map1 from './components/Map1';
 import Map2 from './components/Map2';
+import MapaHistorico from './components/MapaHistorico';
 
 function App() {
   return (
@@ -14,6 +15,7 @@ function App() {
         <div className="map-container">
           <Map1 />
           <Map2 /> 
+          <MapaHistorico />
         </div>
       </main>
     </div>
